@@ -212,10 +212,100 @@ impl<T: Config> Pallet<T> {
         offset_flows
     }
 
-    // Combines ema price method and tao flow method linearly over FlowHalfLife blocks
+    /// REZERVE: Consumption-weighted emission allocation with bootstrap transition.
+    ///
+    /// emission_share(subnet) = spec_weight * flow_share(subnet)
+    ///                        + cons_weight * (w1 * norm_consumption(subnet) + w2 * quality(subnet))
+    ///
+    /// Where spec_weight decays from 80% to 5% over time (bootstrap cold-start solution).
     pub(crate) fn get_shares(subnets_to_emit_to: &[NetUid]) -> BTreeMap<NetUid, U64F64> {
+        let spec_weight_raw = BootstrapSpeculativeWeight::<T>::get(); // 0-10000
+        let spec_weight = U64F64::saturating_from_num(spec_weight_raw)
+            .checked_div(U64F64::saturating_from_num(10000u32))
+            .unwrap_or(U64F64::saturating_from_num(0));
+        let cons_weight = U64F64::saturating_from_num(1u32).saturating_sub(spec_weight);
+
+        let w1_raw = ConsumptionWeight::<T>::get(); // 0-10000
+        let w1 = U64F64::saturating_from_num(w1_raw)
+            .checked_div(U64F64::saturating_from_num(10000u32))
+            .unwrap_or(U64F64::saturating_from_num(7000u32));
+        let w2 = U64F64::saturating_from_num(1u32).saturating_sub(w1);
+
+        // Speculative component: existing TAO flow shares (used during bootstrap)
+        let flow_shares = Self::get_shares_flow(subnets_to_emit_to);
+
+        // Consumption component: verified consumption per subnet
+        let mut total_consumption = U64F64::saturating_from_num(0u32);
+        let consumptions: BTreeMap<NetUid, U64F64> = subnets_to_emit_to
+            .iter()
+            .map(|netuid| {
+                let c = U64F64::saturating_from_num(SubnetConsumption::<T>::get(*netuid));
+                total_consumption = total_consumption.saturating_add(c);
+                (*netuid, c)
+            })
+            .collect();
+
+        // Quality component: validator consensus quality scores
+        let mut total_quality = U64F64::saturating_from_num(0u32);
+        let qualities: BTreeMap<NetUid, U64F64> = subnets_to_emit_to
+            .iter()
+            .map(|netuid| {
+                let q = U64F64::saturating_from_num(SubnetQualityScore::<T>::get(*netuid));
+                total_quality = total_quality.saturating_add(q);
+                (*netuid, q)
+            })
+            .collect();
+
+        // Compute combined shares
+        subnets_to_emit_to
+            .iter()
+            .map(|netuid| {
+                // Speculative share from flow
+                let flow_share = flow_shares.get(netuid).copied()
+                    .unwrap_or(U64F64::saturating_from_num(0));
+
+                // Normalized consumption share
+                let norm_consumption = if total_consumption > U64F64::saturating_from_num(0u32) {
+                    consumptions.get(netuid).copied()
+                        .unwrap_or(U64F64::saturating_from_num(0))
+                        .checked_div(total_consumption)
+                        .unwrap_or(U64F64::saturating_from_num(0))
+                } else {
+                    // No consumption yet: equal share (bootstrap fallback)
+                    U64F64::saturating_from_num(1u32)
+                        .checked_div(U64F64::saturating_from_num(subnets_to_emit_to.len() as u32))
+                        .unwrap_or(U64F64::saturating_from_num(0))
+                };
+
+                // Normalized quality share
+                let norm_quality = if total_quality > U64F64::saturating_from_num(0u32) {
+                    qualities.get(netuid).copied()
+                        .unwrap_or(U64F64::saturating_from_num(0))
+                        .checked_div(total_quality)
+                        .unwrap_or(U64F64::saturating_from_num(0))
+                } else {
+                    U64F64::saturating_from_num(1u32)
+                        .checked_div(U64F64::saturating_from_num(subnets_to_emit_to.len() as u32))
+                        .unwrap_or(U64F64::saturating_from_num(0))
+                };
+
+                // Combined consumption+quality share
+                let consumption_share = w1.saturating_mul(norm_consumption)
+                    .saturating_add(w2.saturating_mul(norm_quality));
+
+                // Final share: bootstrap blend
+                let final_share = spec_weight.saturating_mul(flow_share)
+                    .saturating_add(cons_weight.saturating_mul(consumption_share));
+
+                (*netuid, final_share)
+            })
+            .collect()
+    }
+
+    /// Legacy: TAO flow-based allocation (kept for bootstrap speculative component)
+    #[allow(dead_code)]
+    fn get_shares_flow_legacy(subnets_to_emit_to: &[NetUid]) -> BTreeMap<NetUid, U64F64> {
         Self::get_shares_flow(subnets_to_emit_to)
-        // Self::get_shares_price_ema(subnets_to_emit_to)
     }
 
     // DEPRECATED: Implementation of shares that uses EMA prices will be gradually deprecated

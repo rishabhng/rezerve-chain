@@ -21,6 +21,18 @@ impl<T: Config + pallet_drand::Config> Pallet<T> {
 
         // --- 3. Reveal matured weights.
         Self::reveal_crv3_commits();
+        // --- 3.5 REZERVE: Decay bootstrap speculative weight toward consumption-based.
+        // Decays by ~0.1% per block. At 12s blocks, 80% -> 5% takes ~7500 blocks (~25 hours).
+        // In production, tune decay rate via governance.
+        {
+            let current_weight = BootstrapSpeculativeWeight::<T>::get();
+            let min_weight: u16 = 500; // 5% floor
+            if current_weight > min_weight {
+                // Decay by 1 unit per block (0.01% per block)
+                let new_weight = current_weight.saturating_sub(1);
+                BootstrapSpeculativeWeight::<T>::put(new_weight.max(min_weight));
+            }
+        }
         // --- 4. Run emission through network.
         Self::run_coinbase(block_emission);
         // --- 5. Update moving prices AFTER using them for emissions.

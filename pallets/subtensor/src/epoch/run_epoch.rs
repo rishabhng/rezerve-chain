@@ -778,12 +778,51 @@ impl<T: Config> Pallet<T> {
         // == Ranks, Trust, Incentive ==
         // =============================
 
-        // Compute ranks: r_j = SUM(i) w_ij * s_i.
+        // Compute weight-based ranks: r_j = SUM(i) w_ij * s_i.
         let mut ranks: Vec<I32F32> = matmul_sparse(&clipped_weights, &active_stake, n);
-
         inplace_normalize(&mut ranks); // range: I32F32(0, 1)
-        let incentive: Vec<I32F32> = ranks.clone();
-        log::trace!("Incentive (=Rank): {:?}", &incentive);
+
+        // REZERVE: Blend consumption data into incentive.
+        // incentive = (spec_weight) * weight_rank + (1 - spec_weight) * consumption_share
+        // During bootstrap, weight_rank dominates. As consumption grows, consumption_share takes over.
+        let spec_raw = BootstrapSpeculativeWeight::<T>::get(); // 0-10000
+        let spec_alpha = I32F32::saturating_from_num(spec_raw as i32)
+            / I32F32::saturating_from_num(10000i32);
+        let cons_alpha = I32F32::saturating_from_num(1i32).saturating_sub(spec_alpha);
+
+        // Build per-miner consumption share vector
+        let mut consumption_shares: Vec<I32F32> = vec![I32F32::from(0); n as usize];
+        let mut total_miner_consumption: u64 = 0;
+        for uid in 0..n {
+            let c = MinerConsumption::<T>::get(netuid, uid);
+            total_miner_consumption = total_miner_consumption.saturating_add(c);
+            if let Some(slot) = consumption_shares.get_mut(uid as usize) {
+                *slot = I32F32::saturating_from_num(c as i32);
+            }
+        }
+        if total_miner_consumption > 0 {
+            // Normalize to sum=1
+            let total = I32F32::saturating_from_num(total_miner_consumption as i32);
+            for cs in consumption_shares.iter_mut() {
+                *cs = (*cs).checked_div(total).unwrap_or(I32F32::from(0));
+            }
+        } else {
+            // No consumption yet: fall back to equal shares (bootstrap behavior)
+            let equal = I32F32::saturating_from_num(1i32)
+                .checked_div(I32F32::saturating_from_num(n.max(1) as i32))
+                .unwrap_or(I32F32::from(0));
+            for cs in consumption_shares.iter_mut() {
+                *cs = equal;
+            }
+        }
+
+        // Blend: incentive = spec_alpha * ranks + cons_alpha * consumption_shares
+        let incentive: Vec<I32F32> = ranks
+            .iter()
+            .zip(consumption_shares.iter())
+            .map(|(r, c)| spec_alpha.saturating_mul(*r).saturating_add(cons_alpha.saturating_mul(*c)))
+            .collect();
+        log::trace!("Incentive (Rezerve blended): {:?}", &incentive);
 
         // =========================
         // == Bonds and Dividends ==

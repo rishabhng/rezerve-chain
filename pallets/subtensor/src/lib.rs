@@ -1455,6 +1455,61 @@ pub mod pallet {
     pub type SubnetEmaTaoFlow<T: Config> =
         StorageMap<_, Identity, NetUid, (u64, I64F64), OptionQuery>;
 
+    // ====================================================================
+    // REZERVE: Consumption-based emission storage
+    // ====================================================================
+
+    /// --- MAP ( netuid ) --> verified consumption units this epoch
+    #[pallet::storage]
+    pub type SubnetConsumption<T: Config> =
+        StorageMap<_, Identity, NetUid, u64, ValueQuery>;
+
+    /// --- MAP ( netuid ) --> multi-validator quality consensus score (0-65535)
+    #[pallet::storage]
+    pub type SubnetQualityScore<T: Config> =
+        StorageMap<_, Identity, NetUid, u16, ValueQuery>;
+
+    /// --- DMAP ( netuid, uid ) --> per-miner consumption within subnet
+    #[pallet::storage]
+    pub type MinerConsumption<T: Config> =
+        StorageDoubleMap<_, Identity, NetUid, Identity, u16, u64, ValueQuery>;
+
+    /// --- MAP ( netuid ) --> total consumer payments in TAO this epoch
+    #[pallet::storage]
+    pub type ConsumerPayments<T: Config> =
+        StorageMap<_, Identity, NetUid, u64, ValueQuery>;
+
+    /// --- ITEM --> current bootstrap speculative weight (0-10000 = 0%-100%)
+    /// Decays from 8000 (80%) toward 500 (5%) over time
+    #[pallet::storage]
+    pub type BootstrapSpeculativeWeight<T: Config> =
+        StorageValue<_, u16, ValueQuery, DefaultBootstrapWeight<T>>;
+
+    #[pallet::type_value]
+    pub fn DefaultBootstrapWeight<T: Config>() -> u16 {
+        8000u16 // 80% speculative at genesis
+    }
+
+    /// --- ITEM --> consumption weight in emission formula (0-10000 = 0%-100%)
+    #[pallet::storage]
+    pub type ConsumptionWeight<T: Config> =
+        StorageValue<_, u16, ValueQuery, DefaultConsumptionWeight<T>>;
+
+    #[pallet::type_value]
+    pub fn DefaultConsumptionWeight<T: Config>() -> u16 {
+        7000u16 // w1 = 70% consumption, w2 = 30% quality
+    }
+
+    /// --- ITEM --> minimum consumer payment ratio (scaled by 1000, so 1100 = 1.1x)
+    #[pallet::storage]
+    pub type MinConsumerPaymentRatio<T: Config> =
+        StorageValue<_, u16, ValueQuery, DefaultMinPaymentRatio<T>>;
+
+    #[pallet::type_value]
+    pub fn DefaultMinPaymentRatio<T: Config>() -> u16 {
+        1100u16 // 1.1x = consumer must pay 110% of emission value
+    }
+
     /// Default value for flow cutoff.
     #[pallet::type_value]
     pub fn DefaultFlowCutoff<T: Config>() -> I64F64 {

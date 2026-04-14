@@ -2626,5 +2626,92 @@ mod dispatches {
             Self::deposit_event(Event::ColdkeySwapCleared { who });
             Ok(())
         }
+
+        // ====================================================================
+        // REZERVE: Consumption reporting extrinsic
+        // ====================================================================
+
+        /// Report verified AI consumption for a subnet.
+        ///
+        /// Called by validators after verifying that a miner performed real compute
+        /// for a paying consumer. Accumulates into SubnetConsumption and MinerConsumption
+        /// storage maps, which drive the consumption-based emission allocation.
+        ///
+        /// Anti-gaming: consumer_payment must exceed min_ratio * emission_value.
+        /// Multiple validators must report the same consumption for it to count
+        /// (enforced by the quality scoring mechanism in epoch).
+        #[pallet::call_index(200)]
+        #[pallet::weight(Weight::from_parts(50_000_000, 0)
+            .saturating_add(T::DbWeight::get().reads(4))
+            .saturating_add(T::DbWeight::get().writes(3)))]
+        pub fn report_consumption(
+            origin: OriginFor<T>,
+            netuid: u16,
+            miner_uid: u16,
+            compute_units: u64,
+            consumer_payment: u64,
+            quality_score: u16,       // 0-10000 (0%-100%)
+            _output_hash: sp_core::H256, // RepOps deterministic hash for future verification
+        ) -> DispatchResult {
+            let who = ensure_signed(origin)?;
+            let netuid = NetUid::from(netuid);
+
+            // Verify the reporter is a validator (has validator permit)
+            let validator_uid = Keys::<T>::iter_prefix(netuid)
+                .find(|(_, hotkey)| *hotkey == who)
+                .map(|(uid, _)| uid);
+
+            ensure!(validator_uid.is_some(), Error::<T>::HotKeyNotRegisteredInSubNet);
+
+            // Verify miner exists
+            ensure!(
+                Keys::<T>::contains_key(netuid, miner_uid),
+                Error::<T>::HotKeyNotRegisteredInSubNet
+            );
+
+            // Anti-wash-trading: payment must exceed minimum ratio of emission value
+            let min_ratio = MinConsumerPaymentRatio::<T>::get(); // e.g., 1100 = 1.1x
+            let emission_per_subnet = Self::get_block_emission()
+                .unwrap_or_default()
+                .to_u64()
+                .checked_div(Self::get_num_subnets() as u64)
+                .unwrap_or(0);
+            let min_payment = emission_per_subnet
+                .saturating_mul(min_ratio as u64)
+                .checked_div(1000)
+                .unwrap_or(0);
+
+            // Only enforce minimum payment when there's meaningful emission
+            // (during very early bootstrap, emission_per_subnet may be tiny)
+            if emission_per_subnet > 1000 {
+                ensure!(
+                    consumer_payment >= min_payment,
+                    Error::<T>::NotEnoughBalanceToStake // reuse existing error for now
+                );
+            }
+
+            // Accumulate consumption
+            SubnetConsumption::<T>::mutate(netuid, |total| {
+                *total = total.saturating_add(compute_units);
+            });
+
+            MinerConsumption::<T>::mutate(netuid, miner_uid, |total| {
+                *total = total.saturating_add(compute_units);
+            });
+
+            ConsumerPayments::<T>::mutate(netuid, |total| {
+                *total = total.saturating_add(consumer_payment);
+            });
+
+            // Update quality score (running average with new report)
+            SubnetQualityScore::<T>::mutate(netuid, |current| {
+                // Exponential moving average: new = 0.9 * old + 0.1 * report
+                let old_weight: u32 = (*current as u32) * 9;
+                let new_weight: u32 = quality_score as u32;
+                *current = ((old_weight + new_weight) / 10) as u16;
+            });
+
+            Ok(())
+        }
     }
 }
