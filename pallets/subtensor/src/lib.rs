@@ -1485,6 +1485,7 @@ pub mod pallet {
     pub type BootstrapSpeculativeWeight<T: Config> =
         StorageValue<_, u16, ValueQuery, DefaultBootstrapWeight<T>>;
 
+    /// Default bootstrap speculative weight: 80% at genesis.
     #[pallet::type_value]
     pub fn DefaultBootstrapWeight<T: Config>() -> u16 {
         8000u16 // 80% speculative at genesis
@@ -1495,6 +1496,7 @@ pub mod pallet {
     pub type ConsumptionWeight<T: Config> =
         StorageValue<_, u16, ValueQuery, DefaultConsumptionWeight<T>>;
 
+    /// Default consumption weight: 70% consumption, 30% quality.
     #[pallet::type_value]
     pub fn DefaultConsumptionWeight<T: Config>() -> u16 {
         7000u16 // w1 = 70% consumption, w2 = 30% quality
@@ -1505,6 +1507,7 @@ pub mod pallet {
     pub type MinConsumerPaymentRatio<T: Config> =
         StorageValue<_, u16, ValueQuery, DefaultMinPaymentRatio<T>>;
 
+    /// Default minimum payment ratio: 1.1x (consumer pays 110% of emission value).
     #[pallet::type_value]
     pub fn DefaultMinPaymentRatio<T: Config>() -> u16 {
         1100u16 // 1.1x = consumer must pay 110% of emission value

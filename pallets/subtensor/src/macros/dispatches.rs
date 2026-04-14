@@ -2674,7 +2674,7 @@ mod dispatches {
             let emission_per_subnet = Self::get_block_emission()
                 .unwrap_or_default()
                 .to_u64()
-                .checked_div(Self::get_num_subnets() as u64)
+                .checked_div(Self::get_max_subnets() as u64)
                 .unwrap_or(0);
             let min_payment = emission_per_subnet
                 .saturating_mul(min_ratio as u64)
