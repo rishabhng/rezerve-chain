@@ -19,9 +19,9 @@ pub fn devnet_config() -> Result<ChainSpec, String> {
             ..Default::default()
         },
     )
-    .with_name("Bittensor")
-    .with_protocol_id("bittensor")
-    .with_id("bittensor")
+    .with_name("Rezerve")
+    .with_protocol_id("rezerve")
+    .with_id("rezerve")
     .with_chain_type(ChainType::Development)
     .with_genesis_config_patch(devnet_genesis(
         // Initial PoA authorities (Validators)

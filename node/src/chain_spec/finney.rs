@@ -77,9 +77,9 @@ pub fn finney_mainnet_config() -> Result<ChainSpec, String> {
             ..Default::default()
         },
     )
-    .with_name("Bittensor")
-    .with_protocol_id("bittensor")
-    .with_id("bittensor")
+    .with_name("Rezerve")
+    .with_protocol_id("rezerve")
+    .with_id("rezerve")
     .with_chain_type(ChainType::Live)
 	.with_boot_nodes(vec![
         "/dns/bootnode.finney.chain.opentensor.ai/tcp/30333/ws/p2p/12D3KooWRwbMb85RWnT8DSXSYMWQtuDwh4LJzndoRrTDotTR5gDC"

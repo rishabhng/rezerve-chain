@@ -25,9 +25,9 @@ pub fn localnet_config(single_authority: bool) -> Result<ChainSpec, String> {
             ..Default::default()
         },
     )
-    .with_name("Bittensor")
-    .with_protocol_id("bittensor")
-    .with_id("bittensor")
+    .with_name("Rezerve")
+    .with_protocol_id("rezerve")
+    .with_id("rezerve")
     .with_chain_type(ChainType::Local)
     .with_genesis_config_patch(localnet_genesis(
         // Initial PoA authorities (Validators)

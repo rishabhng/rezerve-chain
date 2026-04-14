@@ -49,14 +49,14 @@ pub fn finney_testnet_config() -> Result<ChainSpec, String> {
             ..Default::default()
         },
     )
-    .with_name("Bittensor")
+    .with_name("Rezerve")
     .with_boot_nodes(vec![
         "/dns/bootnode.test.chain.opentensor.ai/tcp/30333/p2p/12D3KooWPM4mLcKJGtyVtkggqdG84zWrd7Rij6PGQDoijh1X86Vr"
             .parse()
             .unwrap(),
     ])
-    .with_protocol_id("bittensor")
-    .with_id("bittensor")
+    .with_protocol_id("rezerve")
+    .with_id("rezerve")
     .with_chain_type(ChainType::Development)
     .with_genesis_config_patch(testnet_genesis(
         // Initial PoA authorities (Validators)
