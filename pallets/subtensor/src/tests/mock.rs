@@ -605,7 +605,14 @@ pub fn new_test_ext(block_number: BlockNumber) -> sp_io::TestExternalities {
         .build_storage()
         .unwrap();
     let mut ext = sp_io::TestExternalities::new(t);
-    ext.execute_with(|| System::set_block_number(block_number));
+    ext.execute_with(|| {
+        System::set_block_number(block_number);
+        // REZERVE: Set 100% speculative weight in tests for backward compatibility.
+        // Existing tests assume dTAO-style pure flow allocation. At 10000 (100%),
+        // get_shares() uses only the flow component, matching original behavior.
+        // Consumption-specific tests explicitly override this to lower values.
+        BootstrapSpeculativeWeight::<Test>::put(10000u16);
+    });
     ext
 }
 

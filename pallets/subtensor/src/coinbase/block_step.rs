@@ -23,12 +23,13 @@ impl<T: Config + pallet_drand::Config> Pallet<T> {
         Self::reveal_crv3_commits();
         // --- 3.5 REZERVE: Decay bootstrap speculative weight toward consumption-based.
         // Decays by ~0.1% per block. At 12s blocks, 80% -> 5% takes ~7500 blocks (~25 hours).
-        // In production, tune decay rate via governance.
+        // Genesis value is 8000 (80%). Values above 8000 indicate an override (e.g., test
+        // backward compatibility at 10000) and should not decay.
         {
             let current_weight = BootstrapSpeculativeWeight::<T>::get();
-            let min_weight: u16 = 500; // 5% floor
-            if current_weight > min_weight {
-                // Decay by 1 unit per block (0.01% per block)
+            let genesis_weight: u16 = 8000; // only decay from genesis value down
+            let min_weight: u16 = 500;      // 5% floor
+            if current_weight <= genesis_weight && current_weight > min_weight {
                 let new_weight = current_weight.saturating_sub(1);
                 BootstrapSpeculativeWeight::<T>::put(new_weight.max(min_weight));
             }

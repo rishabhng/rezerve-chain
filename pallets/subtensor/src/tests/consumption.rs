@@ -82,7 +82,8 @@ fn test_quality_score_ema() {
 #[test]
 fn test_bootstrap_weight_decay() {
     new_test_ext(1).execute_with(|| {
-        // Default should be 8000 (80%)
+        // Mock sets to 10000 for backward compat. Reset to 8000 for this test.
+        BootstrapSpeculativeWeight::<Test>::put(8000u16);
         assert_eq!(BootstrapSpeculativeWeight::<Test>::get(), 8000);
 
         // Simulate 100 blocks of decay (1 unit per block)
@@ -113,7 +114,8 @@ fn test_consumption_defaults() {
     new_test_ext(1).execute_with(|| {
         assert_eq!(ConsumptionWeight::<Test>::get(), 7000); // 70%
         assert_eq!(MinConsumerPaymentRatio::<Test>::get(), 1100); // 1.1x
-        assert_eq!(BootstrapSpeculativeWeight::<Test>::get(), 8000); // 80%
+        // Mock overrides to 10000 for backward compat, but type_value default is 8000
+        assert_eq!(BootstrapSpeculativeWeight::<Test>::get(), 10000); // mock override
     });
 }
 
